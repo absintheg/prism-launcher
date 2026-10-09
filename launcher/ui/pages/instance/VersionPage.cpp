@@ -121,18 +121,6 @@ void VersionPage::retranslate()
     ui->retranslateUi(this);
 }
 
-void VersionPage::openedImpl()
-{
-    const auto setting_name = QString("WideBarVisibility_%1").arg(id());
-    m_wide_bar_setting = APPLICATION->settings()->getOrRegisterSetting(setting_name);
-
-    ui->toolBar->setVisibilityState(QByteArray::fromBase64(m_wide_bar_setting->get().toString().toUtf8()));
-}
-void VersionPage::closedImpl()
-{
-    m_wide_bar_setting->set(QString::fromUtf8(ui->toolBar->getVisibilityState().toBase64()));
-}
-
 QMenu* VersionPage::createPopupMenu()
 {
     QMenu* filteredMenu = QMainWindow::createPopupMenu();
@@ -240,7 +228,7 @@ void VersionPage::updateButtons(int row)
     ui->actionRemove->setEnabled(patch && patch->isRemovable());
     ui->actionMove_down->setEnabled(patch && patch->isMoveable());
     ui->actionMove_up->setEnabled(patch && patch->isMoveable());
-    ui->actionChange_version->setEnabled(patch && patch->isVersionChangeable(false));
+    ui->actionChange_version->setEnabled(patch && patch->isVersionChangeable());
     ui->actionEdit->setEnabled(patch && patch->isCustom());
     ui->actionCustomize->setEnabled(patch && patch->isCustomizable());
     ui->actionRevert->setEnabled(patch && patch->isRevertible());

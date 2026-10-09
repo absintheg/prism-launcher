@@ -2,6 +2,7 @@
 #include "Application.h"
 #include "ChooseProviderDialog.h"
 #include "CustomMessageBox.h"
+#include "Json.h"
 #include "ProgressDialog.h"
 #include "ScrollMessageBox.h"
 #include "StringUtils.h"
@@ -53,7 +54,8 @@ ResourceUpdateDialog::ResourceUpdateDialog(QWidget* parent,
                                            ResourceFolderModel* resourceModel,
                                            QList<Resource*>& searchFor,
                                            bool includeDeps,
-                                           QList<ModPlatform::ModLoaderType> loadersList)
+                                           QList<ModPlatform::ModLoaderType> loadersList,
+                                           std::vector<ModPlatform::IndexedVersionType> releaseTypes)
     : ReviewMessageBox(parent, tr("Confirm resources to update"), "")
     , m_parent(parent)
     , m_resourceModel(resourceModel)
@@ -62,8 +64,14 @@ ResourceUpdateDialog::ResourceUpdateDialog(QWidget* parent,
     , m_instance(instance)
     , m_includeDeps(includeDeps)
     , m_loadersList(std::move(loadersList))
+    , m_releaseTypes(std::move(releaseTypes))
 {
     ReviewMessageBox::setGeometry(0, 0, 800, 600);
+
+    if (m_releaseTypes.empty()) {
+        auto settingVal = APPLICATION->settings()->get("ModUpdateReleaseTypes");
+        m_releaseTypes = ModPlatform::IndexedVersionType::fromStringList(Json::toStringList(settingVal.toString()));
+    }
 
     ui->explainLabel->setText(tr("You're about to update the following resources:"));
     ui->onlyCheckedLabel->setText(tr("Only resources with a check will be updated!"));
@@ -104,7 +112,7 @@ void ResourceUpdateDialog::checkCandidates()
     SequentialTask checkTask(tr("Checking for updates"));
 
     if (!m_modrinthToUpdate.empty()) {
-        m_modrinthCheckTask.reset(new ModrinthCheckUpdate(m_modrinthToUpdate, versions, m_loadersList, m_resourceModel));
+        m_modrinthCheckTask.reset(new ModrinthCheckUpdate(m_modrinthToUpdate, versions, m_loadersList, m_resourceModel, m_releaseTypes));
         connect(m_modrinthCheckTask.get(), &CheckUpdateTask::checkFailed, this,
                 [this](Resource* resource, const QString& reason, const QUrl& recoverUrl) {
                     m_failedCheckUpdate.append({ resource, reason, recoverUrl });
@@ -113,7 +121,7 @@ void ResourceUpdateDialog::checkCandidates()
     }
 
     if (!m_flameToUpdate.empty()) {
-        m_flameCheckTask.reset(new FlameCheckUpdate(m_flameToUpdate, versions, m_loadersList, m_resourceModel));
+        m_flameCheckTask.reset(new FlameCheckUpdate(m_flameToUpdate, versions, m_loadersList, m_resourceModel, m_releaseTypes));
         connect(m_flameCheckTask.get(), &CheckUpdateTask::checkFailed, this,
                 [this](Resource* resource, const QString& reason, const QUrl& recoverUrl) {
                     m_failedCheckUpdate.append({ resource, reason, recoverUrl });
@@ -133,7 +141,7 @@ void ResourceUpdateDialog::checkCandidates()
 
     // Check for updates
     ProgressDialog progressDialog(m_parent);
-    progressDialog.setSkipButton(true, tr("Abort"));
+    progressDialog.showSkipButton();
     progressDialog.setWindowTitle(tr("Checking for updates..."));
     auto ret = progressDialog.execWithTask(&checkTask);
 
@@ -233,7 +241,7 @@ void ResourceUpdateDialog::checkCandidates()
             });
 
             ProgressDialog progressDialogDeps(m_parent);
-            progressDialogDeps.setSkipButton(true, tr("Abort"));
+            progressDialogDeps.showSkipButton();
             progressDialogDeps.setWindowTitle(tr("Checking for dependencies..."));
             auto dret = progressDialogDeps.execWithTask(depTask.get());
 
@@ -402,7 +410,7 @@ auto ResourceUpdateDialog::ensureMetadata() -> bool
 
     // execute all the tasks
     ProgressDialog checkingDialog(m_parent);
-    checkingDialog.setSkipButton(true, tr("Abort"));
+    checkingDialog.showSkipButton();
     checkingDialog.setWindowTitle(tr("Generating metadata..."));
     auto retMetadata = checkingDialog.execWithTask(&seq);
 
@@ -412,7 +420,7 @@ auto ResourceUpdateDialog::ensureMetadata() -> bool
 void ResourceUpdateDialog::onMetadataEnsured(Resource* resource)
 {
     // When the mod is a folder, for instance
-    if (!resource->metadata()) {
+    if (!resource->metadata() || resource->lockUpdate()) {
         return;
     }
 

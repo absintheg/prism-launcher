@@ -425,7 +425,7 @@ void ScreenshotsPage::on_actionUpload_triggered()
     auto job = NetJob::Ptr(new NetJob("Screenshot Upload", APPLICATION->network()));
 
     ProgressDialog dialog(this);
-    dialog.setSkipButton(true, tr("Abort"));
+    dialog.showSkipButton();
 
     if (selection.size() < 2) {
         auto item = selection.at(0);
@@ -588,16 +588,6 @@ void ScreenshotsPage::openedImpl()
             ui->listView->setModel(nullptr);
         }
     }
-
-    const auto setting_name = QString("WideBarVisibility_%1").arg(id());
-    m_wide_bar_setting = APPLICATION->settings()->getOrRegisterSetting(setting_name);
-
-    ui->toolBar->setVisibilityState(QByteArray::fromBase64(m_wide_bar_setting->get().toString().toUtf8()));
-}
-
-void ScreenshotsPage::closedImpl()
-{
-    m_wide_bar_setting->set(QString::fromUtf8(ui->toolBar->getVisibilityState().toBase64()));
 }
 
 #include "ScreenshotsPage.moc"
